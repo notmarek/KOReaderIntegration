@@ -7,3 +7,6 @@ jbutil
 compile_commands.json
 .cache
 _deps
+.ninja_deps
+.ninja_log
+build.ninja

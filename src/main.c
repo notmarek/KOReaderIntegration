@@ -1,11 +1,14 @@
 #include "openlipc.h"
 #include "sqlite3.h"
+#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <syslog.h>
 #include <unistd.h>
-#include <string.h>
 
 struct LipcStringHandler;
 
@@ -138,26 +141,56 @@ LIPCcode run_cmd_setter(struct LipcStringHandler *this, LIPC *lipc,
   char *malloced = malloc(strlen(out) + 1);
   strcpy(malloced, out);
   if (this->data != NULL) {
-      free(this->data);
+    free(this->data);
   }
   this->data = (void *)malloced;
   return LIPC_OK;
 }
-int icuCompare(void* udp, int sizeA, const void* textA,
-                          int sizeB, const void* textB) {
-    int result = sizeA | sizeB;
-    if (result != 0) {
-        if (sizeA == 0) {
-            result = 1;
-        } else if (sizeB == 0) {
-            result = 0xffffffff;
-        } else {
-            result = strcoll(textA, textB);
-        }
+int icuCompare(void *udp, int sizeA, const void *textA, int sizeB,
+               const void *textB) {
+  int result = sizeA | sizeB;
+  if (result != 0) {
+    if (sizeA == 0) {
+      result = 1;
+    } else if (sizeB == 0) {
+      result = 0xffffffff;
+    } else {
+      result = strcoll(textA, textB);
     }
-    return result;
-
+  }
+  return result;
 }
+LIPCcode get_registered_apps(struct LipcStringHandler *this, LIPC *lipc,
+                             char **value) {
+  sqlite3 *db;
+  sqlite3_open("/var/local/appreg.db", &db);
+  sqlite3_stmt *stmt;
+  sqlite3_prepare_v2(db,
+                     "SELECT handlerId, value FROM properties WHERE handlerId "
+                     "like 'com.notmarek.jb%' AND name = 'command';",
+                     -1, &stmt, NULL);
+  ;
+
+  char *final = "appName | handlerId | command\n";
+
+  while (sqlite3_step(stmt) == SQLITE_ROW) {
+    const unsigned char *handlerId = sqlite3_column_text(stmt, 0);
+    const unsigned char *command = sqlite3_column_text(stmt, 1);
+    char *appName = (char *)(handlerId + 15);
+    char *line =
+        malloc(strlen((char *)handlerId) + strlen((char *)command) + 3);
+    sprintf(line, "%s|%s|%s\n", appName, handlerId, command);
+    strcat(final, line);
+    free(line);
+  }
+  sqlite3_finalize(stmt);
+  sqlite3_close(db);
+  *value = malloc(strlen(final) + 1);
+  strcpy(*value, final);
+
+  return LIPC_OK;
+}
+
 LIPCcode register_app(struct LipcStringHandler *this, LIPC *lipc, char *value) {
   // split value by "\n"
   const char *app_name = strtok(value, ";");
@@ -245,15 +278,12 @@ LIPCcode register_app(struct LipcStringHandler *this, LIPC *lipc, char *value) {
   sqlite3_bind_text(stmt, 9, app_title, -1, SQLITE_STATIC);
   int step = sqlite3_step(stmt);
   if (step != SQLITE_DONE) {
-    printf("Failed to insert app into CC database: %s\n",
-           sqlite3_errmsg(db));
-  //  return LIPC_ERROR_INTERNAL;
-
+    printf("Failed to insert app into CC database: %s\n", sqlite3_errmsg(db));
+    //  return LIPC_ERROR_INTERNAL;
   }
   int sql = sqlite3_finalize(stmt);
   if (sql != SQLITE_OK) {
-    printf("Failed to insert app into CC database: %s\n",
-           sqlite3_errmsg(db));
+    printf("Failed to insert app into CC database: %s\n", sqlite3_errmsg(db));
     return LIPC_ERROR_INTERNAL;
   }
   sqlite3_close(db);
@@ -265,7 +295,58 @@ LIPCcode register_app(struct LipcStringHandler *this, LIPC *lipc, char *value) {
   return LIPC_OK;
 }
 
+static void skeleton_daemon() {
+  // taken from https://stackoverflow.com/a/17955149
+  pid_t pid;
+
+  /* Fork off the parent process */
+  pid = fork();
+
+  /* An error occurred */
+  if (pid < 0)
+    exit(EXIT_FAILURE);
+
+  /* Success: Let the parent terminate */
+  if (pid > 0)
+    exit(EXIT_SUCCESS);
+
+  /* On success: The child process becomes session leader */
+  if (setsid() < 0)
+    exit(EXIT_FAILURE);
+
+  /* Catch, ignore and handle signals */
+  // TODO: Implement a working signal handler */
+  signal(SIGCHLD, SIG_IGN);
+  signal(SIGHUP, SIG_IGN);
+
+  /* Fork off for the second time*/
+  pid = fork();
+
+  /* An error occurred */
+  if (pid < 0)
+    exit(EXIT_FAILURE);
+
+  /* Success: Let the parent terminate */
+  if (pid > 0)
+    exit(EXIT_SUCCESS);
+
+  /* Set new file permissions */
+  umask(0);
+
+  /* Change the working directory to the root directory */
+  /* or another appropriated directory */
+  chdir("/");
+
+  /* Close all open file descriptors */
+  int x;
+  for (x = sysconf(_SC_OPEN_MAX); x >= 0; x--) {
+    close(x);
+  }
+}
+
 int main() {
+  printf("Forking into the background.");
+  skeleton_daemon();
   LIPCcode opened;
   LIPC *handle = LipcOpenEx("com.notmarek.jb", &opened);
   if (opened != LIPC_OK) {
@@ -276,9 +357,7 @@ int main() {
   register_string_handler(handle, "runCmd", run_cmd_getter, run_cmd_setter);
   // Switch to hasharray instead of splitting string by ";"
   register_string_handler(handle, "registerApp", NULL, register_app);
-  register_string_handler(handle, "registeredApps",
-                          NULL /* TODO: Get apps registered with the util */,
-                          NULL);
+  register_string_handler(handle, "registeredApps", get_registered_apps, NULL);
   register_string_handler(handle, "deregisterApp", NULL,
                           NULL /* TODO: deregister app logic */);
 
