@@ -2,9 +2,6 @@ cmake_minimum_required(VERSION 3.28)
 project(jbutil LANGUAGES C)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-
-#file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/lipc.c "#include \"openlipc.h\"// int LipcOpenEx(void) { return 0; }")
-
 add_library(lipc SHARED ${CMAKE_CURRENT_BINARY_DIR}/lipc.c)
 
 include(FetchContent)

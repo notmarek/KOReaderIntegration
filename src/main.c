@@ -191,6 +191,67 @@ LIPCcode get_registered_apps(struct LipcStringHandler *this, LIPC *lipc,
   return LIPC_OK;
 }
 
+LIPCcode deregister_app(struct LipcStringHandler *this, LIPC *lips,
+                        char *value) {
+  // Remove app from appreg.db
+  char *handlerId = malloc(strlen(value) + 15 + 1);
+  sprintf(handlerId, "com.notmarek.jb%s", value);
+  const char *sql = "BEGIN TRANSACTION;"
+                    "DELETE FROM extenstions WHERE mimetype IN (SELECT "
+                    "contentId FROM associations WHERE handlerId = ?);"
+                    "DELETE FROM mimetypes WHERE mimetype IN (SELECT contentId "
+                    "FROM associations WHERE handlerId = ?);"
+                    "DELETE FROM associations WHERE handlerId = ?;"
+                    "DELETE FROM properties WHERE handlerId = ?;"
+                    "DELETE FROM handlerIds WHERE handlerId = ?;"
+                    "COMMIT;";
+
+  sqlite3 *db;
+  int rc = sqlite3_open("/var/local/appreg.db", &db);
+  if (rc != SQLITE_OK) {
+    fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+    sqlite3_close(db);
+    return LIPC_ERROR_INTERNAL;
+  }
+
+  sqlite3_stmt *stmt;
+  rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+  if (rc != SQLITE_OK) {
+    fprintf(stderr, "Preparation failed: %s\n", sqlite3_errmsg(db));
+    sqlite3_close(db);
+    return LIPC_ERROR_INTERNAL;
+  }
+
+  for (int i = 1; i <= 5; i++) {
+    sqlite3_bind_text(stmt, i, handlerId, -1, SQLITE_STATIC);
+  }
+
+  rc = sqlite3_step(stmt);
+  if (rc != SQLITE_DONE) {
+    fprintf(stderr, "Execution failed: %s\n", sqlite3_errmsg(db));
+    return LIPC_ERROR_INTERNAL;
+  }
+
+  sqlite3_finalize(stmt);
+  sqlite3_close(db);
+
+  // Remove app from cc.db
+  sqlite3_open("/var/local/cc.db", &db);
+
+  sqlite3_create_collation(db, "icu", 4, NULL, icuCompare);
+
+  sqlite3_prepare_v2(db, "DELETE FROM Entries WHERE cdekey = ?;", -1, &stmt,
+                     NULL);
+  sqlite3_bind_text(stmt, 1, value, -1, SQLITE_STATIC);
+  sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+
+  sqlite3_close(db);
+
+  free(handlerId);
+  return LIPC_OK;
+}
+
 LIPCcode register_app(struct LipcStringHandler *this, LIPC *lipc, char *value) {
   // split value by "\n"
   const char *app_name = strtok(value, ";");
@@ -358,8 +419,7 @@ int main() {
   // Switch to hasharray instead of splitting string by ";"
   register_string_handler(handle, "registerApp", NULL, register_app);
   register_string_handler(handle, "registeredApps", get_registered_apps, NULL);
-  register_string_handler(handle, "deregisterApp", NULL,
-                          NULL /* TODO: deregister app logic */);
+  register_string_handler(handle, "deregisterApp", NULL, deregister_app);
 
   printf("JBUtil ready!\n");
   while (1) {
