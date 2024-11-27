@@ -1,0 +1,3 @@
+[submodule "openlipc"]
+	path = openlipc
+	url = https://github.com/arkq/openlipc
