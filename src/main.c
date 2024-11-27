@@ -1,5 +1,6 @@
 #include "openlipc.h"
 #include "sqlite3.h"
+#include <getopt.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -9,6 +10,7 @@
 #include <sys/types.h>
 #include <syslog.h>
 #include <unistd.h>
+#define APP_PREFIX "com.notmarek.jb"
 
 struct LipcStringHandler;
 
@@ -167,7 +169,7 @@ LIPCcode get_registered_apps(struct LipcStringHandler *this, LIPC *lipc,
   sqlite3_stmt *stmt;
   sqlite3_prepare_v2(db,
                      "SELECT handlerId, value FROM properties WHERE handlerId "
-                     "like 'com.notmarek.jb%' AND name = 'command';",
+                     "like '" APP_PREFIX "%s' AND name = 'command';",
                      -1, &stmt, NULL);
   ;
 
@@ -180,6 +182,7 @@ LIPCcode get_registered_apps(struct LipcStringHandler *this, LIPC *lipc,
     char *line =
         malloc(strlen((char *)handlerId) + strlen((char *)command) + 3);
     sprintf(line, "%s|%s|%s\n", appName, handlerId, command);
+    final = realloc(final, strlen(final) + strlen(line) + 1);
     strcat(final, line);
     free(line);
   }
@@ -195,7 +198,7 @@ LIPCcode deregister_app(struct LipcStringHandler *this, LIPC *lips,
                         char *value) {
   // Remove app from appreg.db
   char *handlerId = malloc(strlen(value) + 15 + 1);
-  sprintf(handlerId, "com.notmarek.jb%s", value);
+  sprintf(handlerId, APP_PREFIX "%s", value);
   const char *sql = "BEGIN TRANSACTION;"
                     "DELETE FROM extenstions WHERE mimetype IN (SELECT "
                     "contentId FROM associations WHERE handlerId = ?);"
@@ -263,9 +266,9 @@ LIPCcode register_app(struct LipcStringHandler *this, LIPC *lipc, char *value) {
   // Register the app inside appreg.db
   const char *reg =
       "{\"def\":\"interface\",\"assoc\":{\"interface\":\"application\"}},{"
-      "\"def\":\"handlerId\",\"assoc\":{\"handlerId\":\"com.notmarek.jb%s\","
+      "\"def\":\"handlerId\",\"assoc\":{\"handlerId\":\"" APP_PREFIX "%s\","
       "\"props\":{\"command\":\"%s\"}}},{\"def\":\"association\",\"assoc\":{"
-      "\"interface\":\"application\",\"handlerId\":\"com.notmarek.jb%s\","
+      "\"interface\":\"application\",\"handlerId\":\"" APP_PREFIX "%s\","
       "\"contentIds\":[\"MT:image/"
       "x.jb%s\"],\"default\":\"false\"}},{\"def\":\"mimetype\",\"assoc\":{"
       "\"mimetype\":\"MT:image/x.jb%s\",\"extensions\":[\"jb%s\"]}}";
@@ -405,25 +408,87 @@ static void skeleton_daemon() {
   }
 }
 
-int main() {
-  printf("Forking into the background.");
-  skeleton_daemon();
+// Global variables for signal handling
+static volatile sig_atomic_t keep_running = 1;
+static LIPC *global_handle = NULL;
+
+void handle_signal(int sig) {
+  if (sig == SIGINT || sig == SIGTERM) {
+    printf("\nReceiving shutdown signal. Cleaning up...\n");
+    keep_running = 0;
+
+    // Close LIPC if it's open
+    if (global_handle) {
+      LipcClose(global_handle);
+      global_handle = NULL;
+    }
+  }
+}
+
+int main(int argc, char *argv[]) {
+  bool run_as_daemon = true;
+
+  // Parse command-line options
+  int opt;
+  static struct option long_options[] = {{"no-daemon", no_argument, 0, 'n'},
+                                         {0, 0, 0, 0}};
+
+  while ((opt = getopt_long(argc, argv, "n", long_options, NULL)) != -1) {
+    switch (opt) {
+    case 'n':
+      run_as_daemon = false;
+      break;
+    default:
+      fprintf(stderr, "Usage: %s [--no-daemon|-n]\n", argv[0]);
+      exit(EXIT_FAILURE);
+    }
+  }
+
+  // Daemonize only if requested
+  if (run_as_daemon) {
+    printf("Forking into the background.\n");
+    skeleton_daemon();
+  } else {
+    printf("Running in foreground mode.\n");
+
+    // Setup signal handling for foreground mode
+    if (signal(SIGINT, handle_signal) == SIG_ERR) {
+      perror("Unable to set SIGINT handler");
+      exit(EXIT_FAILURE);
+    }
+
+    if (signal(SIGTERM, handle_signal) == SIG_ERR) {
+      perror("Unable to set SIGTERM handler");
+      exit(EXIT_FAILURE);
+    }
+  }
+
   LIPCcode opened;
-  LIPC *handle = LipcOpenEx("com.notmarek.jb", &opened);
+  LIPC *handle = LipcOpenEx(APP_PREFIX, &opened);
   if (opened != LIPC_OK) {
     printf("Failed to open LIPC\n");
     return 1;
   }
+
+  // Store handle globally for signal handler
+  global_handle = handle;
+
   register_string_handler(handle, "exit", NULL, lipc_string_setter_exit);
   register_string_handler(handle, "runCmd", run_cmd_getter, run_cmd_setter);
-  // Switch to hasharray instead of splitting string by ";"
   register_string_handler(handle, "registerApp", NULL, register_app);
   register_string_handler(handle, "registeredApps", get_registered_apps, NULL);
   register_string_handler(handle, "deregisterApp", NULL, deregister_app);
 
   printf("JBUtil ready!\n");
-  while (1) {
+
+  // Main loop with graceful shutdown
+  while (keep_running) {
     sleep(1);
   }
+
+  // Cleanup
+  LipcClose(handle);
+  printf("JBUtil shutting down.\n");
+
   return 0;
 }
