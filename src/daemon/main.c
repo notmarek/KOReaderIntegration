@@ -88,14 +88,6 @@ int register_string_handler(LIPC *lipc, const char *command,
   return 0;
 }
 
-LIPCcode lipc_string_setter_exit(struct LipcStringHandler *this, LIPC *lipc,
-                                 char *value) {
-  printf("Closing.\n");
-  LipcClose(lipc);
-  exit(0);
-  return LIPC_OK;
-}
-
 LIPCcode run_cmd_getter(struct LipcStringHandler *this, LIPC *lipc,
                         char **value) {
   if (this->data != NULL) {
@@ -171,7 +163,6 @@ LIPCcode get_registered_apps(struct LipcStringHandler *this, LIPC *lipc,
                      "SELECT handlerId, value FROM properties WHERE handlerId "
                      "like '" APP_PREFIX "%s' AND name = 'command';",
                      -1, &stmt, NULL);
-  ;
 
   char *final = "appName | handlerId | command\n";
 
@@ -422,7 +413,15 @@ void handle_signal(int sig) {
       LipcClose(global_handle);
       global_handle = NULL;
     }
+    exit(0);
   }
+}
+
+LIPCcode lipc_string_setter_exit(struct LipcStringHandler *this, LIPC *lipc,
+                                 char *value) {
+  printf("Closing.\n");
+  handle_signal(SIGINT);
+  return LIPC_OK;
 }
 
 int main(int argc, char *argv[]) {

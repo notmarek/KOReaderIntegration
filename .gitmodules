@@ -1,3 +1,6 @@
 [submodule "openlipc"]
 	path = openlipc
 	url = https://github.com/arkq/openlipc
+[submodule "cJSON"]
+	path = cJSON
+	url = https://github.com/DaveGamble/cJSON.git
