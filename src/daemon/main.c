@@ -1,5 +1,8 @@
+#include "cJSON.h"
 #include "openlipc.h"
+#include "scanner.h"
 #include "sqlite3.h"
+#include <complex.h>
 #include <getopt.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -277,12 +280,47 @@ LIPCcode register_app(struct LipcStringHandler *this, LIPC *lipc, char *value) {
   system("/usr/bin/register /tmp/tmp.register");
 
   // First generate an UUID for the entry
-  FILE *uuidgen = popen("/bin/uuidgen", "r");
-  char *uuid = malloc(37);
-  fgets(uuid, 37, uuidgen);
-  pclose(uuidgen);
-  uuid[36] = '\0';
+  char uuid[37] = {0};
+  scanner_gen_uuid((char *)&uuid, 37);
 
+  // FILE *uuidgen = popen("/bin/uuidgen", "r");
+  // char *uuid = malloc(37);
+  // fgets(uuid, 37, uuidgen);
+  // pclose(uuidgen);
+  // uuid[36] = '\0';
+
+  cJSON *json = cJSON_CreateObject();
+  cJSON_AddItemToObject(json, "type", cJSON_CreateString("ChangeRequest"));
+  cJSON *changes = cJSON_CreateArray();
+  cJSON *change = cJSON_CreateObject();
+
+  cJSON_AddItemToObject(change, "uuid", cJSON_CreateString(uuid));
+  char *app_path = malloc(strlen(app_name) * 2 + 21 + 1);
+  sprintf(app_path, "/mnt/us/documents/%s.jb%s", app_name, app_name);
+  cJSON_AddItemToObject(change, "location", cJSON_CreateString(app_path));
+  cJSON_AddItemToObject(change, "type", cJSON_CreateString("Entry:Item"));
+  cJSON_AddItemToObject(change, "modificationTime", cJSON_CreateNumber(0));
+  cJSON_AddItemToObject(change, "diskUsage", cJSON_CreateNumber(0));
+  cJSON_AddItemToObject(change, "mimeType",
+                        cJSON_CreateString("application/octet-stream"));
+  cJSON_AddItemToObject(change, "isVisibleInHome", cJSON_CreateTrue());
+  cJSON_AddItemToObject(change, "isArchived", cJSON_CreateFalse());
+  cJSON_AddItemToObject(change, "isDRMProtected", cJSON_CreateFalse());
+  const char *languages[] = {"en-US"};
+  cJSON_AddItemToObject(change, "languages",
+                        cJSON_CreateStringArray(languages, 1));
+  const char *titles[] = {app_name};
+  cJSON_AddItemToObject(change, "titles", cJSON_CreateStringArray(titles, 1));
+  cJSON_AddItemToObject(change, "cdeKey", cJSON_CreateString(app_name));
+  cJSON_AddItemToObject(change, "cdeType", cJSON_CreateString("PDOC"));
+  cJSON_AddItemToObject(change, "lastAccess", cJSON_CreateNumber(0));
+  cJSON_AddItemToObject(change, "percentFinished", cJSON_CreateNumber(69));
+  cJSON_AddItemToArray(changes, change);
+  cJSON_AddItemToObject(json, "update", changes);
+  if (scanner_post_change(json) >= 0) {
+      printf("success adding to ccat.\n");
+      cJSON_Delete(json);
+  }
   // Insert the app into the CC database because no indexer will pick it up
   sqlite3 *db;
   sqlite3_open("/var/local/cc.db", &db);
@@ -308,8 +346,6 @@ LIPCcode register_app(struct LipcStringHandler *this, LIPC *lipc, char *value) {
   // 7 - ["App"]
   // 8 - 'App￼App￼'
   sqlite3_bind_text(stmt, 1, uuid, -1, SQLITE_STATIC);
-  char *app_path = malloc(strlen(app_name) * 2 + 21 + 1);
-  sprintf(app_path, "/mnt/us/documents/%s.jb%s", app_name, app_name);
   f = fopen(app_path, "w");
   fprintf(f, "Stub file for launching %s.", app_name);
   fclose(f);
@@ -346,7 +382,6 @@ LIPCcode register_app(struct LipcStringHandler *this, LIPC *lipc, char *value) {
   free(app_display);
   free(app_tags);
   free(app_title);
-  free(uuid);
   return LIPC_OK;
 }
 

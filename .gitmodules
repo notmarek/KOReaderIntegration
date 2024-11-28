@@ -4,3 +4,9 @@
 [submodule "cJSON"]
 	path = cJSON
 	url = https://github.com/DaveGamble/cJSON.git
+[submodule "minizip"]
+	path = minizip
+	url = https://github.com/domoticz/minizip.git
+[submodule "zlib"]
+	path = zlib
+	url = https://github.com/madler/zlib.git
