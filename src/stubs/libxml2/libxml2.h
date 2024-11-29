@@ -69,3 +69,4 @@ xmlNode* xmlDocGetRootElement(xmlDoc* doc);
 void xmlFreeDoc(xmlDoc* doc);
 xmlChar* xmlNodeGetContent(xmlNode* node);
 void xmlCleanupParser();
+void xmlFree(void* xml);

@@ -8,3 +8,4 @@ xmlNode *xmlDocGetRootElement(xmlDoc *doc) { return 0; }
 void xmlFreeDoc(xmlDoc *doc) { return; }
 xmlChar *xmlNodeGetContent(xmlNode *node) { return 0; }
 void xmlCleanupParser() { return; }
+void xmlFree(void *xml) { return; }
