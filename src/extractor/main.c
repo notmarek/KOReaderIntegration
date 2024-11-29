@@ -1,15 +1,17 @@
 #include "cJSON.h"
 #include "scanner.h"
+#include "simple_epub_extractor.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <unistd.h>
 
 void index_file(char *path, char *filename) {
   FILE *f = fopen("/tmp/indexer.log", "a");
   fprintf(f, "Indexing file: %s/%s\n", path, filename);
   fflush(f);
+  char *full_path = malloc(strlen(path) + strlen(filename) + 2);
+  sprintf(full_path, "%s/%s", path, filename);
 
   char uuid[37] = {0};
   scanner_gen_uuid((char *)&uuid, 37);
@@ -18,27 +20,25 @@ void index_file(char *path, char *filename) {
   cJSON_AddItemToObject(json, "type", cJSON_CreateString("ChangeRequest"));
   cJSON *arr = cJSON_CreateArray();
   cJSON *what = cJSON_CreateObject();
-  cJSON *change = cJSON_CreateObject();
-  cJSON_AddItemToObject(change, "uuid", cJSON_CreateString(uuid));
-  char *app_path = malloc(strlen(path) + strlen(filename) + 1);
-  sprintf(app_path, "%s/%s", path, filename);
-  cJSON_AddItemToObject(change, "location", cJSON_CreateString(app_path));
-  cJSON_AddItemToObject(change, "type", cJSON_CreateString("Entry:Item"));
-  cJSON_AddItemToObject(change, "modificationTime",
-                        cJSON_CreateNumber(time(NULL)));
-  cJSON_AddItemToObject(change, "isVisibleInHome", cJSON_CreateTrue());
-  cJSON_AddItemToObject(change, "isArchived", cJSON_CreateFalse());
-  cJSON_AddItemToObject(change, "diskUsage", cJSON_CreateNumber(0));
-  cJSON *titles = cJSON_CreateArray();
-  cJSON *title = cJSON_CreateObject();
-  cJSON_AddItemToObject(title, "display", cJSON_CreateString(filename));
-  cJSON_AddItemToArray(titles, title);
+  cJSON *change = generate_change_request(full_path, uuid);
 
-  cJSON_AddItemToObject(change, "titles", titles);
-  cJSON_AddItemToObject(what, "insert", change);
+  cJSON *filter = cJSON_CreateObject();
+  cJSON *Equals = cJSON_CreateObject();
+  cJSON *location_filter = cJSON_CreateObject();
+  cJSON_AddItemToObject(location_filter, "path",
+                        cJSON_CreateString("location"));
+  cJSON_AddItemToObject(location_filter, "value",
+                        cJSON_CreateString(full_path));
+  cJSON_AddItemToObject(filter, "onConflict", cJSON_CreateString("REPLACE"));
+  cJSON_AddItemToObject(Equals, "Equals", location_filter);
+  cJSON_AddItemToObject(filter, "filter", Equals);
+  cJSON_AddItemToObject(filter, "entry", change);
+  cJSON_AddItemToObject(what, "insertOr", filter);
   cJSON_AddItemToArray(arr, what);
   cJSON_AddItemToObject(json, "commands", arr);
-
+  char* string = cJSON_Print(json);
+  fprintf(f, "JSON: %s\n", string);
+  fflush(f);
   int result = scanner_post_change(json);
   if (result >= 0) {
     fprintf(f, "success adding to ccat.\n");

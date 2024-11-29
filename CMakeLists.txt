@@ -53,12 +53,15 @@ FetchContent_MakeAvailable(sqlite3)
 
 # Add subdirectories
 add_subdirectory(cJSON)
+
+set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries" FORCE)
+set(BUILD_STATIC_LIBS OFF CACHE BOOL "Build static libraries" FORCE)
 add_subdirectory(zlib)
 
 
-add_library(minizip minizip/ioapi.c minizip/unzip.c minizip/zip.c)
-target_include_directories(minizip PRIVATE zlib)
-target_link_libraries(minizip zlib)
+add_library(miniunz minizip/ioapi.c minizip/unzip.c minizip/zip.c)
+target_include_directories(miniunz PRIVATE zlib)
+target_link_libraries(miniunz zlib)
 
 # SQLite3 Library
 add_library(sqlite3 SHARED
@@ -78,23 +81,32 @@ add_library(scanner SHARED
     )
 target_include_directories(scanner PRIVATE cJSON)
 
+# xml2 stub Library
+add_library(xml2 SHARED
+        src/stubs/libxml2/libxml2.c
+    )
+target_include_directories(xml2 PRIVATE src/stubs/libxml2)
 # EPub Extractor Library
 add_library(epubExtractor SHARED
         src/extractor/main.c
+        src/extractor/simple_epub_extractor.c
     )
 target_include_directories(epubExtractor PRIVATE
         openlipc/include
         cJSON
         src/stubs/scanner
-        minizip/minizip
+        minizip
+        zlib
+        src/stubs/libxml2
     )
 target_link_libraries(epubExtractor PRIVATE
         lipc
         scanner
         cjson
-        minizip
+        miniunz
+        xml2
     )
-add_dependencies(epubExtractor minizip zlib)
+add_dependencies(epubExtractor miniunz zlib xml2)
 
 # Daemon Executable
 add_executable(jbutild)
@@ -118,4 +130,20 @@ target_link_libraries(jbutild PRIVATE
     )
 target_sources(jbutild PRIVATE
         src/daemon/main.c
+    )
+ADD_EXECUTABLE(testExtract src/extractor/simple_epub_extractor.c)
+target_include_directories(testExtract PRIVATE
+        openlipc/include
+        cJSON
+        src/stubs/scanner
+        minizip
+        zlib
+        src/stubs/libxml2
+    )
+target_link_libraries(testExtract PRIVATE
+        lipc
+        scanner
+        cjson
+        miniunz
+        xml2
     )
