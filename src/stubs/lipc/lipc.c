@@ -13,3 +13,8 @@ LIPCcode LipcRegisterStringProperty(LIPC *lipc, const char *property,
   printf("Registering string property %s\n", property);
   return LIPC_OK;
 }
+LIPCcode LipcSetStringProperty(LIPC *lipc, const char *service,
+                               const char *property, const char *value) {
+  printf("Setting string property %s.%s to %s\n", service, property, value);
+  return LIPC_OK;
+}

@@ -1,6 +1,5 @@
 #include "cJSON.h"
 #include "libxml2.h"
-#include <fcntl.h>
 #include <minizip/unzip.h>
 #include <stdio.h>
 #include <stdlib.h>

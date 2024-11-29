@@ -2,7 +2,40 @@
   { "def": "interface", "assoc": { "interface": "extractor" } },
   {
     "def": "handlerId",
-    "assoc": { "handlerId": "com.notmarek.epub.extractor", "props": { "lib": "/mnt/us/libepubExtractor.so", "entry": "load_epub_extractor" } }
+    "assoc": {
+      "handlerId": "com.notmarek.epub.extractor",
+      "props": {
+        "lib": "/mnt/us/libepubExtractor.so",
+        "entry": "load_epub_extractor"
+      }
+    }
+  },
+  { "def": "interface", "assoc": { "interface": "application" } },
+  {
+    "def": "handlerId",
+    "assoc": {
+      "handlerId": "archive.displaytags.mimetypes",
+      "props": { "application/epub+zip": "EPUB" }
+    }
+  },
+  {
+    "def": "handlerId",
+    "assoc": {
+      "handlerId": "com.koreader.epub",
+      "props": {
+        "extend-start": "Y",
+        "unloadPolicy": "unloadOnPause",
+        "maxGoTime": "60",
+        "maxPauseTime": "60",
+        "maxUnloadTime": "45",
+        "lipcId": "com.koreader.epub",
+        "searchbar-mode": "transient",
+        "supportedOrientation": "U",
+        "framework": "",
+        "default-chrome-style": "NH",
+        "command": "/mnt/us/koreader_helper"
+      }
+    }
   },
   {
     "def": "association",
@@ -10,6 +43,15 @@
       "interface": "extractor",
       "handlerId": "com.notmarek.epub.extractor",
       "contentIds": ["GL:*.epub"],
+      "default": "true"
+    }
+  },
+  {
+    "def": "association",
+    "assoc": {
+      "interface": "application",
+      "handlerId": "com.koreader.epub",
+      "contentIds": ["MT:application/epub+zip"],
       "default": "true"
     }
   },

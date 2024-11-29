@@ -5,7 +5,8 @@ project(jbutil LANGUAGES C)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
-
+find_package(Java REQUIRED)
+include(UseJava)
 include(ProcessorCount)
 ProcessorCount(N)
 if(NOT N EQUAL 0)
@@ -37,7 +38,7 @@ string(REPLACE "-ffast-math" "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
 
 # Set default build type if not specified
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE RelWithDebInfo)
+    set(CMAKE_BUILD_TYPE Debug)
 endif()
 
 # External dependencies
@@ -108,6 +109,15 @@ target_link_libraries(epubExtractor PRIVATE
     )
 add_dependencies(epubExtractor miniunz zlib xml2)
 
+# Koreader helper
+add_executable(koreader_helper src/koreader/main.c)
+target_include_directories(koreader_helper PRIVATE
+        openlipc/include)
+target_link_libraries(koreader_helper PRIVATE
+        lipc
+    )
+
+
 # Daemon Executable
 add_executable(jbutild)
 set_target_properties(jbutild PROPERTIES
@@ -146,4 +156,15 @@ target_link_libraries(testExtract PRIVATE
         cjson
         miniunz
         xml2
+    )
+
+
+# java helper
+
+
+set(CMAKE_JAVA_COMPILE_FLAGS "-source" "8" "-target" "8")
+set(CMAKE_JAVA_JAR_ENTRY_POINT com.koreader.Main)
+
+add_jar(KOReaderBooklet
+        koreader_booklet/com/koreader/Main.java
     )

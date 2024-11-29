@@ -1,0 +1,13 @@
+// Static tasks configuration.
+//
+// Example:
+[
+  {
+    "label": "Build",
+    "command": "ninja",
+    "use_new_terminal": false,
+    "reveal": "always",
+    "hide": "never",
+    "shell": "system"
+  }
+]
