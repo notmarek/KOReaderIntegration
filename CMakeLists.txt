@@ -52,11 +52,12 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(sqlite3)
 
 # Add subdirectories
-add_subdirectory(cJSON)
+set(ENABLE_CJSON_VERSION_SO OFF CACHE BOOL "Enable cJSON version suffix" FORCE)
+add_subdirectory(cJSON EXCLUDE_FROM_ALL)
 
 set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries" FORCE)
 set(BUILD_STATIC_LIBS OFF CACHE BOOL "Build static libraries" FORCE)
-add_subdirectory(zlib)
+add_subdirectory(zlib EXCLUDE_FROM_ALL)
 
 
 add_library(miniunz minizip/ioapi.c minizip/unzip.c minizip/zip.c)

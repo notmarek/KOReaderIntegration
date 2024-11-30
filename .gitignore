@@ -12,3 +12,4 @@ _deps
 build.ninja
 *.epub
 testExtract
+koreader_helper
