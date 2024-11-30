@@ -5,8 +5,7 @@ project(jbutil LANGUAGES C)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
-find_package(Java REQUIRED)
-include(UseJava)
+
 include(ProcessorCount)
 ProcessorCount(N)
 if(NOT N EQUAL 0)
@@ -156,15 +155,4 @@ target_link_libraries(testExtract PRIVATE
         cjson
         miniunz
         xml2
-    )
-
-
-# java helper
-
-
-set(CMAKE_JAVA_COMPILE_FLAGS "-source" "8" "-target" "8")
-set(CMAKE_JAVA_JAR_ENTRY_POINT com.koreader.Main)
-
-add_jar(KOReaderBooklet
-        koreader_booklet/com/koreader/Main.java
     )
