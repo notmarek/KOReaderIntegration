@@ -1,5 +1,6 @@
 #include "cJSON.h"
 #include "libxml2.h"
+#include <dlfcn.h>
 #include <minizip/unzip.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -115,7 +116,7 @@ int read_file_from_zip(const char *zipfile, const char *filename, char **out) {
   return file_info.uncompressed_size;
 }
 
-cJSON *generate_change_request(char *file_path, char *uuid) {
+cJSON *generate_change_request(const char *file_path, char *uuid) {
   FILE *f = fopen("/tmp/epub_meta.log", "a");
   fprintf(f, "Generating change request for %s\n", file_path);
 
@@ -351,25 +352,56 @@ cJSON *generate_change_request(char *file_path, char *uuid) {
   return json;
 }
 
+struct scanner_event {
+  int event_type;
+  char *path;
+  void *lipchandle;
+  char *filename;
+  char *uuid;
+  char *glob;
+};
+typedef int(ScannerEventHandler)(const struct scanner_event *event);
+typedef void (*ScannerEventHandler2)(ScannerEventHandler **handler, int *unk1);
 int main(int argc, char *argv[]) {
-  if (argc < 2) {
-    fprintf(stderr, "Usage: %s <file_path>\n", argv[0]);
-    return EXIT_FAILURE;
+  void *handle = dlopen("/mnt/us/libepubExtractor.so", RTLD_NOW);
+  if (!handle) {
+    fprintf(stderr, "dlopen error: %s\n", dlerror());
+    exit(EXIT_FAILURE);
   }
+  void *fun = dlsym(handle, "load_epub_extractor");
 
-  const char *file_path = argv[1];
+  printf("hi: %p\n", fun);
+  ScannerEventHandler *event_handler;
+  int out = -1;
+  ((ScannerEventHandler2)fun)(&event_handler, &out);
+  printf("hi: %p %d\n", event_handler, out);
+  struct scanner_event *event = malloc(sizeof(struct scanner_event));
+  event->event_type = 0;
+  event->path = "/mnt/us/documents/Stoka";
+  event->lipchandle = NULL;
+  event->filename = "test.epub";
+  event->uuid = "45";
+  event->glob = "GL:*.epub";
+  event_handler(event);
 
-  cJSON *json = generate_change_request(file_path, "45");
-  if (json == NULL) {
-    fprintf(stderr, "Failed to generate change request\n");
-    return EXIT_FAILURE;
-  }
+  // if (argc < 2) {
+  //   fprintf(stderr, "Usage: %s <file_path>\n", argv[0]);
+  //   return EXIT_FAILURE;
+  // }
 
-  char *json_str = cJSON_Print(json);
+  // const char *file_path = argv[1];
 
-  // Free JSON string and JSON object
-  free(json_str);
-  cJSON_Delete(json);
+  // cJSON *json = generate_change_request(file_path, "45");
+  // if (json == NULL) {
+  //   fprintf(stderr, "Failed to generate change request\n");
+  //   return EXIT_FAILURE;
+  // }
+
+  // char *json_str = cJSON_Print(json);
+
+  // // Free JSON string and JSON object
+  // free(json_str);
+  // cJSON_Delete(json);
 
   return EXIT_SUCCESS;
 }

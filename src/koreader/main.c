@@ -1,13 +1,13 @@
 #include "openlipc.h"
 #include <ctype.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <signal.h>
 
-#define SERVICE_NAME "com.koreader.epub"
+#define SERVICE_NAME "com.github.koreader.helper"
 bool done = false;
 pid_t koreader_pid = -1;
 
@@ -24,12 +24,6 @@ LIPCcode stub(LIPC *lipc, const char *property, void *value, void *data) {
   free(target);
 
   return LIPC_OK;
-}
-
-LIPCcode unload(LIPC *lipc, const char *property, void *value, void *data) {
-  done = true;
-  kill(koreader_pid, SIGINT);
-  return stub(lipc, property, value, data);
 }
 
 /* Converts a hex character to its integer value */
@@ -56,6 +50,16 @@ char *url_decode(char *str) {
   return buf;
 }
 
+LIPCcode unload(LIPC *lipc, const char *property, void *value, void *data) {
+  char *id = strtok((char *)value, ":");
+  char *uri = strtok(NULL, "");
+  char *path = uri + strlen("app://") + strlen(SERVICE_NAME);
+  char *decoded = url_decode(path);
+  LipcSetStringProperty(lipc, "com.lab126.scanner", "reScanFile", decoded);
+  kill(koreader_pid, SIGINT);
+  done = true;
+  return stub(lipc, property, value, data);
+}
 
 LIPCcode go(LIPC *lipc, const char *property, void *value, void *data) {
   if (koreader_pid != -1) {
@@ -65,22 +69,16 @@ LIPCcode go(LIPC *lipc, const char *property, void *value, void *data) {
   char *id = strtok((char *)value, ":");
   char *uri = strtok(NULL, "");
   char *path = uri + strlen("app://") + strlen(SERVICE_NAME);
-  char *decoded = malloc(strlen(path) + 7 + 1);
-  sprintf(decoded, "file://%s", path);
+  char *new_uri = malloc(strlen(path) + 7 + 1);
+  sprintf(new_uri, "file://%s", path);
   char cmd[1024] = {0};
-  sprintf(cmd, "/mnt/us/koreader/koreader.sh --appmgr --asap %s", decoded);
-
-
-  // execl("/var/local/mkk/su", "su", "-c", &cmd, NULL);
-
+  sprintf(cmd, "/mnt/us/koreader/koreader.sh --asap %s", new_uri);
   koreader_pid = fork();
   if (koreader_pid == 0) {
-        execl("/var/local/mkk/su", "su", "-c", &cmd, NULL);
-  //  char *args[] = {"--appmgr", "--asap", decoded, NULL};
-  //  execv("/mnt/us/koreader/koreader.sh", args);
+    // we are runnning as framework call gandalf for help
+    execl("/var/local/mkk/su", "su", "-c", &cmd, NULL);
   }
-  free(decoded);
-  // system(cmd);
+  free(new_uri);
   return stub(lipc, property, value, data);
 }
 
@@ -97,7 +95,7 @@ int main(void) {
   LipcRegisterStringProperty(lipc, "pause", NULL, stub, NULL);
   LipcRegisterStringProperty(lipc, "go", NULL, go, NULL);
   LipcSetStringProperty(lipc, "com.lab126.appmgrd", "runresult",
-                        "0:com.koreader.epub");
+                        "0:" SERVICE_NAME "");
 
   while (!done) {
     sleep(1);

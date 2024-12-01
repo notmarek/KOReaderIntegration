@@ -156,4 +156,5 @@ target_link_libraries(testExtract PRIVATE
         cjson
         miniunz
         xml2
+        dl
     )

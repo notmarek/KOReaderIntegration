@@ -21,14 +21,13 @@
   {
     "def": "handlerId",
     "assoc": {
-      "handlerId": "com.koreader.epub",
+      "handlerId": "com.github.koreader.helper",
       "props": {
         "extend-start": "Y",
         "unloadPolicy": "unloadOnPause",
         "maxGoTime": "60",
         "maxPauseTime": "60",
         "maxUnloadTime": "45",
-        "lipcId": "com.koreader.epub",
         "searchbar-mode": "transient",
         "supportedOrientation": "U",
         "framework": "",
@@ -50,7 +49,7 @@
     "def": "association",
     "assoc": {
       "interface": "application",
-      "handlerId": "com.koreader.epub",
+      "handlerId": "com.github.koreader.helper",
       "contentIds": ["MT:application/epub+zip"],
       "default": "true"
     }
