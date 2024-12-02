@@ -56,13 +56,19 @@ char *url_decode(char *str) {
 
 LIPCcode pause_(LIPC *lipc, const char *property, void *value, void *data) {
   syslog(LOG_INFO, "Restarting statusbar.");
-  execl("/var/local/mkk/su", "su", "-c", "/sbin/start statusbar", NULL);
+  int pid = fork();
+  if (pid == 0) {
+    execl("/var/local/mkk/su", "su", "-c", "/sbin/start statusbar", NULL);
+  }
   return stub(lipc, property, value, data);
 }
 
 LIPCcode load(LIPC *lipc, const char *property, void *value, void *data) {
   syslog(LOG_INFO, "Stopping statusbar.");
-  execl("/var/local/mkk/su", "su", "-c", "/sbin/stop statusbar", NULL);
+  int pid = fork();
+  if (pid == 0) {
+    execl("/var/local/mkk/su", "su", "-c", "/sbin/stop statusbar", NULL);
+  }
   return stub(lipc, property, value, data);
 }
 
@@ -112,7 +118,7 @@ int main(void) {
   if (code != LIPC_OK)
     return 1;
 
-  LipcRegisterStringProperty(lipc, "load", NULL, stub, NULL);
+  LipcRegisterStringProperty(lipc, "load", NULL, load, NULL);
   LipcRegisterStringProperty(lipc, "unload", NULL, unload, NULL);
   LipcRegisterStringProperty(lipc, "pause", NULL, pause_, NULL);
   LipcRegisterStringProperty(lipc, "go", NULL, go, NULL);
