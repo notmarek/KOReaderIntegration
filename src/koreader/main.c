@@ -51,6 +51,7 @@ char *url_decode(char *str) {
 }
 
 LIPCcode unload(LIPC *lipc, const char *property, void *value, void *data) {
+  execl("/var/local/mkk/su", "su", "-c", "/sbin/restart statusbar");
   char *id = strtok((char *)value, ":");
   char *uri = strtok(NULL, "");
   char *path = uri + strlen("app://") + strlen(SERVICE_NAME);
@@ -58,6 +59,11 @@ LIPCcode unload(LIPC *lipc, const char *property, void *value, void *data) {
   LipcSetStringProperty(lipc, "com.lab126.scanner", "reScanFile", decoded);
   kill(koreader_pid, SIGINT);
   done = true;
+  return stub(lipc, property, value, data);
+}
+
+LIPCcode load(LIPC *lipc, const char *property, void *value, void *data) {
+  execl("/var/local/mkk/su", "su", "-c", "/sbin/stop statusbar");
   return stub(lipc, property, value, data);
 }
 
@@ -72,7 +78,7 @@ LIPCcode go(LIPC *lipc, const char *property, void *value, void *data) {
   char *new_uri = malloc(strlen(path) + 7 + 1);
   sprintf(new_uri, "file://%s", path);
   char cmd[1024] = {0};
-  sprintf(cmd, "/mnt/us/koreader/koreader.sh --asap %s", new_uri);
+  sprintf(cmd, "/mnt/us/koreader/koreader_helper.sh --asap %s", new_uri);
   koreader_pid = fork();
   if (koreader_pid == 0) {
     // we are runnning as framework call gandalf for help
