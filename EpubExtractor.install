@@ -1,0 +1,37 @@
+  { "def": "interface", "assoc": { "interface": "application" } },
+  { "def": "interface", "assoc": { "interface": "extractor" } },
+  {
+    "def": "handlerId",
+    "assoc": {
+      "handlerId": "com.notmarek.extractor",
+      "props": {
+        "lib": "/mnt/us/EPUBIntegration/libepubExtractor.so",
+        "entry": "load_extractors"
+      }
+    }
+  },
+  {
+    "def": "association",
+    "assoc": {
+      "interface": "extractor",
+      "handlerId": "com.notmarek.extractor",
+      "contentIds": ["GL:*.epub"],
+      "default": "true"
+    }
+  },
+  {
+    "def": "mimetype",
+    "assoc": {
+      "mimetype": "MT:application/epub+zip",
+      "extensions": ["epub"]
+    }
+  },
+  {
+    "def": "association",
+    "assoc": {
+      "interface": "application",
+      "handlerId": "com.github.koreader.helper",
+      "contentIds": ["MT:application/epub+zip"],
+      "default": "true"
+    }
+  }

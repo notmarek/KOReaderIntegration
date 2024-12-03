@@ -1,0 +1,9 @@
+1685a1680,1687
+>     local haslipc, lipc = pcall(require, "libopenlipclua") -- use our lua lipc library with access to hasharray properties
+>     local lipc_handle
+>     if haslipc then
+>         lipc_handle = lipc.open_no_name()
+>     end
+>     if lipc_handle then
+>         lipc_handle:get_string_property("com.lab126.appmgrd", "popAppHistory")
+>     end

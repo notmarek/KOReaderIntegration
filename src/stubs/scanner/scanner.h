@@ -24,3 +24,4 @@ void scanner_gen_uuid(char *out, int buffer_size);
 char *scanner_get_thumbnail_for_uuid(char *uuid);
 void scanner_update_ccat(char *uuid, char *thumbnail_path);
 void scanner_delete_ccat_entry(char *uuid);
+char* getSha1Hash(const char* data);

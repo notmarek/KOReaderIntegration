@@ -1,5 +1,6 @@
 #include "cJSON.h"
 #include "libxml2.h"
+#include "utils.h"
 #include <dlfcn.h>
 #include <minizip/unzip.h>
 #include <stdio.h>
@@ -116,7 +117,7 @@ int read_file_from_zip(const char *zipfile, const char *filename, char **out) {
   return file_info.uncompressed_size;
 }
 
-cJSON *generate_change_request(const char *file_path, char *uuid) {
+cJSON *generate_change_request_epub(const char *file_path, const char *uuid) {
   FILE *f = fopen("/tmp/epub_meta.log", "a");
   fprintf(f, "Generating change request for %s\n", file_path);
 
@@ -189,152 +190,80 @@ cJSON *generate_change_request(const char *file_path, char *uuid) {
   }
   root_element = xmlDocGetRootElement(metadata_doc);
 
-  json = cJSON_CreateObject();
-  cJSON_AddItemToObject(json, "uuid", cJSON_CreateString(uuid));
-  cJSON_AddItemToObject(json, "location", cJSON_CreateString(file_path));
-  cJSON_AddItemToObject(json, "type", cJSON_CreateString("Entry:Item"));
-  cJSON_AddItemToObject(json, "cdeType", cJSON_CreateString("PDOC"));
-
-  cJSON_AddItemToObject(json, "cdeKey", cJSON_CreateString(file_path));
-
   struct stat st;
   stat(file_path, &st);
 
-  cJSON_AddItemToObject(json, "modificationTime",
-                        cJSON_CreateNumber(st.st_mtime));
-  cJSON_AddItemToObject(json, "diskUsage", cJSON_CreateNumber(st.st_size));
-  cJSON_AddItemToObject(json, "isVisibleInHome", cJSON_CreateTrue());
-  cJSON_AddItemToObject(json, "isArchived", cJSON_CreateFalse());
-  cJSON_AddItemToObject(json, "mimeType",
-                        cJSON_CreateString("application/epub+zip"));
-
-  // Process creator
   xmlNode *creator_node = find_element_by_name(root_element, "creator");
   xmlChar *creator = creator_node ? xmlNodeGetContent(creator_node) : NULL;
-  cJSON *authors = cJSON_CreateArray();
-  cJSON *author = cJSON_CreateObject();
-  cJSON_AddItemToObject(author, "kind", cJSON_CreateString("Author"));
-  cJSON *author_name = cJSON_CreateObject();
-  cJSON_AddItemToObject(
-      author_name, "display",
-      cJSON_CreateString((const char *)(creator ? creator : "Unknown")));
-  cJSON_AddItemToObject(author, "name", author_name);
-  cJSON_AddItemToArray(authors, author);
-  cJSON_AddItemToObject(json, "credits", authors);
-
-  // Free creator content if it was allocated
-  // if (creator) xmlFree(creator);
-
-  // Process publisher
   xmlNode *publisher_node = find_element_by_name(root_element, "publisher");
   xmlChar *publisher =
       publisher_node ? xmlNodeGetContent(publisher_node) : NULL;
-  cJSON_AddItemToObject(
-      json, "publisher",
-      cJSON_CreateString((const char *)(publisher ? publisher : "Unknown")));
-
-  // Free publisher content if it was allocated
-  // if (publisher) xmlFree(publisher);
-
-  // Rest of the JSON creation remains the same...
-  cJSON *refs = cJSON_CreateArray();
-  cJSON *titles_ref = cJSON_CreateObject();
-  cJSON_AddItemToObject(titles_ref, "ref", cJSON_CreateString("titles"));
-  cJSON_AddItemToArray(refs, titles_ref);
-  cJSON *authors_ref = cJSON_CreateObject();
-  cJSON_AddItemToObject(authors_ref, "ref", cJSON_CreateString("credits"));
-  cJSON_AddItemToArray(refs, authors_ref);
-  cJSON_AddItemToObject(json, "displayObjects", refs);
-
-  const char *tags[] = {"NEW"};
-  cJSON_AddItemToObject(json, "displayTags", cJSON_CreateStringArray(tags, 1));
-
-  // Get the cover image
-  //
   xmlNode *cover_id_node =
       find_element_by_prop(root_element, "meta", "name", "cover");
-  if (cover_id_node == NULL) {
-
-    fprintf(f, "Could not find cover meta element\n");
-    // Cleanup before returning
-    free(metadata);
-    xmlFreeDoc(metadata_doc);
-    xmlFreeDoc(doc);
-    free(meta_inf);
-    fclose(f);
-    cJSON_Delete(json);
-    return NULL;
-  }
-
-  xmlChar *cover_id = xmlGetProp(cover_id_node, (xmlChar *)"content");
-  xmlNode *cover_node =
-      find_element_by_prop(root_element, "item", "id", (const char *)cover_id);
-  xmlChar *cover_path = xmlGetProp(cover_node, (xmlChar *)"href");
-
-  char *absolute_cover_path = NULL;
-  char *s = strrchr((const char *)metadata_path, '/');
-  if (s != NULL) {
-    *s = '\0';
-    absolute_cover_path = malloc(strlen((const char *)metadata_path) +
-                                 strlen((const char *)cover_path) + 2);
-    sprintf(absolute_cover_path, "%s/%s", (const char *)metadata_path,
-            (const char *)cover_path);
-  } else {
-    absolute_cover_path = strdup((const char *)cover_path);
-  }
-
   char thumbnail_path[40 + 37];
-  snprintf((char *)&thumbnail_path, 40 + 37,
-           "/mnt/us/system/thumbnails/thumbnail_%s.jpg", uuid);
+  if (cover_id_node != NULL) {
+    char *absolute_cover_path = NULL;
+    xmlChar *cover_id = xmlGetProp(cover_id_node, (xmlChar *)"content");
+    xmlNode *cover_node = find_element_by_prop(root_element, "item", "id",
+                                               (const char *)cover_id);
+    xmlChar *cover_path = xmlGetProp(cover_node, (xmlChar *)"href");
+    char *s = strrchr((const char *)metadata_path, '/');
+    if (s != NULL) {
+      *s = '\0';
+      absolute_cover_path = malloc(strlen((const char *)metadata_path) +
+                                   strlen((const char *)cover_path) + 2);
+      sprintf(absolute_cover_path, "%s/%s", (const char *)metadata_path,
+              (const char *)cover_path);
+    } else {
+      absolute_cover_path = strdup((const char *)cover_path);
+    }
 
-  FILE *thumb = fopen((const char *)&thumbnail_path, "w");
-  if (thumb == NULL) {
-    fprintf(stderr, "Could not open thumbnail file\n");
-    // Extensive cleanup
-    free(absolute_cover_path);
-    free(metadata);
-    xmlFreeDoc(metadata_doc);
-    xmlFreeDoc(doc);
-    free(meta_inf);
-    fclose(f);
-    cJSON_Delete(json);
-    return NULL;
-  }
+    snprintf((char *)&thumbnail_path, 40 + 37,
+             "/mnt/us/system/thumbnails/thumbnail_%s.jpg", uuid);
 
-  char *cover_data = NULL;
-  size = read_file_from_zip(file_path, absolute_cover_path, &cover_data);
-  if (size == -1) {
-    fprintf(f, "Could not read cover image\n");
+    FILE *thumb = fopen((const char *)&thumbnail_path, "w");
+    if (thumb == NULL) {
+      fprintf(stderr, "Could not open thumbnail file\n");
+      // Extensive cleanup
+      free(absolute_cover_path);
+      free(metadata);
+      xmlFreeDoc(metadata_doc);
+      xmlFreeDoc(doc);
+      free(meta_inf);
+      fclose(f);
+      cJSON_Delete(json);
+      return NULL;
+    }
+
+    char *cover_data = NULL;
+    size = read_file_from_zip(file_path, absolute_cover_path, &cover_data);
+    if (size == -1) {
+      fprintf(f, "Could not read cover image\n");
+      fclose(thumb);
+      free(absolute_cover_path);
+      free(metadata);
+      xmlFreeDoc(metadata_doc);
+      xmlFreeDoc(doc);
+      free(meta_inf);
+      fclose(f);
+      cJSON_Delete(json);
+      return NULL;
+    }
+
+    fwrite(cover_data, size, 1, thumb);
     fclose(thumb);
+    free(cover_data);
     free(absolute_cover_path);
-    free(metadata);
-    xmlFreeDoc(metadata_doc);
-    xmlFreeDoc(doc);
-    free(meta_inf);
-    fclose(f);
-    cJSON_Delete(json);
-    return NULL;
   }
-
-  fwrite(cover_data, size, 1, thumb);
-  fclose(thumb);
-  free(cover_data);
-  free(absolute_cover_path);
-
-  cJSON_AddItemToObject(json, "thumbnail", cJSON_CreateString(thumbnail_path));
 
   // Process book title
   xmlNode *book_title_node = find_element_by_name(root_element, "title");
   xmlChar *book_title =
       book_title_node ? xmlNodeGetContent(book_title_node) : NULL;
-  cJSON *titles = cJSON_CreateArray();
-  cJSON *title = cJSON_CreateObject();
-  cJSON_AddItemToObject(
-      title, "display",
-      cJSON_CreateString((const char *)(book_title ? book_title : "Unknown")));
-  cJSON_AddItemToArray(titles, title);
-  cJSON_AddItemToObject(json, "titles", titles);
 
+  json =
+      generate_change_request(uuid, file_path, st.st_mtim.tv_sec, st.st_size,
+                              creator, publisher, book_title, thumbnail_path);
   // Free book title if it was allocated
   // if (book_title) xmlFree(book_title);
 
@@ -352,14 +281,6 @@ cJSON *generate_change_request(const char *file_path, char *uuid) {
   return json;
 }
 
-struct scanner_event {
-  int event_type;
-  char *path;
-  void *lipchandle;
-  char *filename;
-  char *uuid;
-  char *glob;
-};
 typedef int(ScannerEventHandler)(const struct scanner_event *event);
 typedef void (*ScannerEventHandler2)(ScannerEventHandler **handler, int *unk1);
 int main(int argc, char *argv[]) {

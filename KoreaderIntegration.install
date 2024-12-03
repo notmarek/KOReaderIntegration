@@ -1,0 +1,29 @@
+  { "def": "interface", "assoc": { "interface": "application" } },
+  {
+    "def": "handlerId",
+    "assoc": {
+      "handlerId": "com.github.koreader.helper",
+      "props": {
+        "extend-start": "Y",
+        "unloadPolicy": "unloadOnPause",
+        "maxGoTime": "60",
+        "maxPauseTime": "60",
+        "maxUnloadTime": "60",
+        "searchbar-mode": "transient",
+        "supportedOrientation": "U",
+        "framework": "",
+        "lipcId": "com.github.koreader.helper",
+        "default-chrome-style": "NH",
+        "command": "/mnt/us/EPUBIntegration/koreader_helper"
+      }
+    }
+  },
+  {
+    "def": "association",
+    "assoc": {
+      "interface": "application",
+      "handlerId": "com.github.koreader.helper",
+      "contentIds": ["MT:application/epub+zip"],
+      "default": "true"
+    }
+  },

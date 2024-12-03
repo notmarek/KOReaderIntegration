@@ -1,3 +1,3 @@
 #include "cJSON.h"
 
-cJSON *generate_change_request(char *file_path, char *uuid);
+cJSON *generate_change_request_epub(const char *file_path, const char *uuid);

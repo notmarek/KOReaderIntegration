@@ -1,14 +1,17 @@
-#include "cJSON.h"
 #include "scanner.h"
 #include "simple_epub_extractor.h"
+#include "simple_fb2_extractor.h"
+#include <cJSON.h>
 #include <regex.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
-void index_file(char *path, char *filename) {
+typedef cJSON *(ExtractFile)(const char *file_path, const char *uuid);
+void index_file(char *path, char *filename, ExtractFile *extractor) {
   FILE *f = NULL;
   char *full_path = NULL;
   char uuid[37] = {0};
@@ -69,7 +72,7 @@ void index_file(char *path, char *filename) {
     goto cleanup;
   }
 
-  change = generate_change_request(full_path, uuid);
+  change = extractor(full_path, uuid);
   if (!change) {
     fprintf(f, "Failed to generate change request\n");
     goto cleanup;
@@ -214,9 +217,16 @@ cleanup:
     fclose(f);
 }
 
-int epub_extractor(const struct scanner_event *event) {
+int extractor(const struct scanner_event *event) {
   FILE *log_file = NULL;
   char *app_path = NULL;
+
+  ExtractFile *extractor = NULL;
+  if (strcmp(event->glob, "GL:*.epub")) {
+    extractor = generate_change_request_epub;
+  } else if (strcmp(event->glob, "GL:*.fb2")) {
+    extractor = generate_change_request_fb2;
+  }
 
   switch (event->event_type) {
   case SCANNER_ADD:
@@ -228,7 +238,7 @@ int epub_extractor(const struct scanner_event *event) {
       fflush(log_file);
       fclose(log_file);
     }
-    index_file(event->path, event->filename);
+    index_file(event->path, event->filename, extractor);
     break;
 
   case SCANNER_DELETE:
@@ -266,7 +276,7 @@ int epub_extractor(const struct scanner_event *event) {
 
   default:
     log_file = fopen("/tmp/epub_extractor.log", "a");
-    index_file(event->path, event->filename);
+    index_file(event->path, event->filename, extractor);
     if (log_file) {
       fprintf(log_file, "Unknown event type: %d\n", event->event_type);
       fflush(log_file);
@@ -278,8 +288,8 @@ int epub_extractor(const struct scanner_event *event) {
 }
 
 [[gnu::visibility("default")]]
-int load_epub_extractor(ScannerEventHandler **handler, int *unk1) {
-  *handler = epub_extractor;
+int load_extractors(ScannerEventHandler **handler, int *unk1) {
+  *handler = extractor;
   *unk1 = 0;
   return 0;
 }

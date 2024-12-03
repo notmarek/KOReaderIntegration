@@ -13,3 +13,4 @@ build.ninja
 *.epub
 testExtract
 koreader_helper
+dist

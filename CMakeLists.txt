@@ -91,6 +91,7 @@ target_include_directories(xml2 PRIVATE src/stubs/libxml2)
 add_library(epubExtractor SHARED
         src/extractor/main.c
         src/extractor/simple_epub_extractor.c
+        src/extractor/utils.c
     )
 target_include_directories(epubExtractor PRIVATE
         openlipc/include
@@ -141,7 +142,7 @@ target_link_libraries(jbutild PRIVATE
 target_sources(jbutild PRIVATE
         src/daemon/main.c
     )
-ADD_EXECUTABLE(testExtract src/extractor/simple_epub_extractor.c)
+ADD_EXECUTABLE(testExtract src/extractor/simple_epub_extractor.c src/extractor/utils.c)
 target_include_directories(testExtract PRIVATE
         openlipc/include
         cJSON
