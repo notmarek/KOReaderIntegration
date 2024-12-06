@@ -7,12 +7,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/syslog.h>
 #include <time.h>
 #include <unistd.h>
 
 typedef cJSON *(ExtractFile)(const char *file_path, const char *uuid);
 void index_file(char *path, char *filename, ExtractFile *extractor) {
-  FILE *f = NULL;
   char *full_path = NULL;
   char uuid[37] = {0};
   cJSON *json = NULL;
@@ -24,21 +24,13 @@ void index_file(char *path, char *filename, ExtractFile *extractor) {
   cJSON *location_filter = NULL;
   char *json_string = NULL;
 
-  // Open log file
-  f = fopen("/tmp/indexer.log", "a");
-  if (!f) {
-    perror("Failed to open indexer log file");
-    return;
-  }
-
   // Log indexing start
-  fprintf(f, "Indexing file: %s/%s\n", path, filename);
-  fflush(f);
+  syslog(LOG_INFO, "Indexing file: %s/%s", path, filename);
 
   // Create full path
   full_path = malloc(strlen(path) + strlen(filename) + 2);
   if (!full_path) {
-    perror("Memory allocation failed for full_path");
+    syslog(LOG_CRIT, "Failed to malloc memory for file_path.");
     goto cleanup;
   }
   sprintf(full_path, "%s/%s", path, filename);
@@ -46,15 +38,15 @@ void index_file(char *path, char *filename, ExtractFile *extractor) {
   // Generate UUID
   scanner_gen_uuid((char *)&uuid, 37);
   if (uuid[0] == 0) {
-    fprintf(f, "Failed to generate UUID\n");
+    syslog(LOG_INFO, "Failed to generate UUID");
     goto cleanup;
   }
-  fprintf(f, "UUID: %s\n", uuid);
+  syslog(LOG_INFO, "Generated new UUID: %s", uuid);
 
   // Create JSON objects
   json = cJSON_CreateObject();
   if (!json) {
-    fprintf(f, "Failed to create JSON object\n");
+    syslog(LOG_CRIT, "Failed to create a JSON object");
     goto cleanup;
   }
 
@@ -62,25 +54,27 @@ void index_file(char *path, char *filename, ExtractFile *extractor) {
 
   arr = cJSON_CreateArray();
   if (!arr) {
-    fprintf(f, "Failed to create JSON array\n");
+    syslog(LOG_CRIT, "Failed to create a JSON array");
     goto cleanup;
   }
 
   what = cJSON_CreateObject();
   if (!what) {
-    fprintf(f, "Failed to create 'what' JSON object\n");
+
+    syslog(LOG_CRIT, "Failed to create a JSON object");
     goto cleanup;
   }
 
   change = extractor(full_path, uuid);
   if (!change) {
-    fprintf(f, "Failed to generate change request\n");
+    syslog(LOG_CRIT, "Failed to generate a change request");
     goto cleanup;
   }
   // Remove last ".epub" from full_path and store in a new char*
   char *base_path = strdup(full_path);
   if (!base_path) {
-    perror("Memory allocation failed for base_path");
+
+    syslog(LOG_CRIT, "Failed to malloc memory for base_path");
     goto cleanup;
   }
   base_path[strlen(base_path) - 5] = 0;
@@ -92,8 +86,8 @@ void index_file(char *path, char *filename, ExtractFile *extractor) {
     stat(sdr_path, &st);
     cJSON_AddItemToObject(change, "lastAccess",
                           cJSON_CreateNumber(st.st_mtime));
-    fprintf(f, "openeded : %s\n", sdr_path);
-    fflush(f);
+
+    syslog(LOG_INFO, "Opened sdr file metadata file: %s", sdr_path);
     char *line = NULL;
     size_t len = 0;
     ssize_t read;
@@ -102,13 +96,15 @@ void index_file(char *path, char *filename, ExtractFile *extractor) {
     int value =
         regcomp(&regex, "\\[\"percent_finished\"\\] = (.*?),", REG_EXTENDED);
     if (value != 0) {
-      fprintf(f, "Failed to compile regex\n");
+
+      syslog(LOG_CRIT, "Failed to compile percent_finished regex.");
       goto cleanup;
     }
     value = regcomp(&complete_regex, "\\[\"status\"\\] = \"complete\",",
                     REG_EXTENDED);
     if (value != 0) {
-      fprintf(f, "Failed to compile regex\n");
+
+      syslog(LOG_CRIT, "Failed to compile status regex.");
       goto cleanup;
     }
     regmatch_t *matches = malloc(2 * sizeof(regmatch_t));
@@ -125,7 +121,8 @@ void index_file(char *path, char *filename, ExtractFile *extractor) {
         if (value == REG_NOMATCH) {
           continue;
         } else if (value != 0) {
-          fprintf(f, "Failed to execute regex\n");
+
+          syslog(LOG_CRIT, "Failed to exec percent_finished regex.");
           goto cleanup;
         } else {
           char *percent_finished =
@@ -151,13 +148,15 @@ void index_file(char *path, char *filename, ExtractFile *extractor) {
     free(matches);
     fclose(sdr);
   } else {
-    fprintf(f, "Couldnt open : %s\n", sdr_path);
+
+    syslog(LOG_INFO, "Couldn't open sdr metadata: %s", sdr_path);
   }
   free(sdr_path);
 
   location_filter = cJSON_CreateObject();
   if (!location_filter) {
-    fprintf(f, "Failed to create location filter\n");
+
+    syslog(LOG_CRIT, "Failed to create json objecy");
     goto cleanup;
   }
   cJSON_AddItemToObject(location_filter, "path",
@@ -167,14 +166,16 @@ void index_file(char *path, char *filename, ExtractFile *extractor) {
 
   Equals = cJSON_CreateObject();
   if (!Equals) {
-    fprintf(f, "Failed to create Equals object\n");
+
+    syslog(LOG_CRIT, "Failed to create json objecy");
     goto cleanup;
   }
   cJSON_AddItemToObject(Equals, "Equals", location_filter);
 
   filter = cJSON_CreateObject();
   if (!filter) {
-    fprintf(f, "Failed to create filter object\n");
+
+    syslog(LOG_CRIT, "Failed to create json objecy");
     goto cleanup;
   }
   cJSON_AddItemToObject(filter, "onConflict", cJSON_CreateString("REPLACE"));
@@ -188,18 +189,20 @@ void index_file(char *path, char *filename, ExtractFile *extractor) {
   // Print JSON
   json_string = cJSON_Print(json);
   if (!json_string) {
-    fprintf(f, "Failed to convert JSON to string\n");
+
+    syslog(LOG_CRIT, "Failed to convert JSON to string");
     goto cleanup;
   }
-  fprintf(f, "JSON: %s\n", json_string);
-  fflush(f);
+
+  syslog(LOG_DEBUG, "ChangeRequest JSON: %s", json_string);
 
   // Post change
   int result = scanner_post_change(json);
-  fprintf(f, "Result: %d\n", result);
   if (result >= 0) {
-    fprintf(f, "success adding to ccat.\n");
+    syslog(LOG_INFO, "Success adding to ccat.");
   }
+
+  syslog(LOG_INFO, "ccat error: %d.", result);
 
 cleanup:
   // Free all allocated resources
@@ -211,10 +214,6 @@ cleanup:
     // Note: cJSON_Delete will recursively free child objects
     cJSON_Delete(json);
   }
-
-  fflush(f);
-  if (f)
-    fclose(f);
 }
 
 int extractor(const struct scanner_event *event) {
@@ -224,7 +223,9 @@ int extractor(const struct scanner_event *event) {
   ExtractFile *extractor = NULL;
   if (strcmp(event->glob, "GL:*.epub")) {
     extractor = generate_change_request_epub;
-  } else if (strcmp(event->glob, "GL:*.fb2")) {
+  } else if (strcmp(event->glob, "GL:*.fb2") ||
+             strcmp(event->glob, "GL:*.fb2.zip") ||
+             strcmp(event->glob, "GL:*.fbz")) {
     extractor = generate_change_request_fb2;
   }
 
@@ -289,6 +290,7 @@ int extractor(const struct scanner_event *event) {
 
 [[gnu::visibility("default")]]
 int load_extractors(ScannerEventHandler **handler, int *unk1) {
+  openlog("notmarek.extractor", LOG_PID, LOG_DAEMON);
   *handler = extractor;
   *unk1 = 0;
   return 0;

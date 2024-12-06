@@ -1,121 +1,11 @@
 #include "cJSON.h"
-#include "libxml2.h"
 #include "utils.h"
 #include <dlfcn.h>
-#include <minizip/unzip.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
-
-// Function to print element contents recursively
-xmlNode *find_element_by_prop(xmlNode *start_node, const char *name,
-                              const char *prop_name, const char *prop_value) {
-  if (!start_node || !prop_name || !prop_value)
-    return NULL;
-  for (xmlNode *cur_node = start_node; cur_node; cur_node = cur_node->next) {
-    xmlChar *val = xmlGetProp(cur_node, (const xmlChar *)prop_name);
-    int match = (cur_node->type == XML_ELEMENT_NODE && val &&
-                 xmlStrcmp(val, (const xmlChar *)prop_value) == 0 &&
-                 xmlStrcmp(cur_node->name, (const xmlChar *)name) == 0);
-
-    // Free the retrieved property to prevent memory leak
-    // if (val) xmlFree(val);
-
-    if (match) {
-      return cur_node;
-    }
-
-    xmlNode *found =
-        find_element_by_prop(cur_node->children, name, prop_name, prop_value);
-    if (found)
-      return found;
-  }
-  return NULL;
-}
-
-xmlNode *find_element_by_name(xmlNode *start_node, const char *name) {
-  if (!start_node || !name)
-    return NULL;
-  for (xmlNode *cur_node = start_node; cur_node; cur_node = cur_node->next) {
-    if (cur_node->type == XML_ELEMENT_NODE &&
-        xmlStrcmp(cur_node->name, (const xmlChar *)name) == 0) {
-      return cur_node;
-    }
-
-    xmlNode *found = find_element_by_name(cur_node->children, name);
-    if (found)
-      return found;
-  }
-  return NULL;
-}
-
-int read_file_from_zip(const char *zipfile, const char *filename, char **out) {
-  unzFile zfile = NULL;
-  char *buffer = NULL;
-
-  // Open the zip file
-  zfile = unzOpen(zipfile);
-  if (zfile == NULL) {
-    fprintf(stderr, "Could not open zip file %s\n", zipfile);
-    return -1;
-  }
-
-  // Locate the file in the zip archive
-  if (unzLocateFile(zfile, filename, 0) != UNZ_OK) {
-    fprintf(stderr, "File %s not found in the archive\n", filename);
-    unzClose(zfile);
-    return -1;
-  }
-
-  // Get current file info
-  unz_file_info file_info;
-  char current_filename[256];
-  if (unzGetCurrentFileInfo(zfile, &file_info, current_filename,
-                            sizeof(current_filename), NULL, 0, NULL,
-                            0) != UNZ_OK) {
-    fprintf(stderr, "Could not get file info\n");
-    unzClose(zfile);
-    return -1;
-  }
-
-  // Open the current file
-  if (unzOpenCurrentFile(zfile) != UNZ_OK) {
-    fprintf(stderr, "Could not open file inside zip\n");
-    unzClose(zfile);
-    return -1;
-  }
-
-  // Buffer for reading
-  buffer = malloc(file_info.uncompressed_size + 1); // +1 for null-termination
-  if (buffer == NULL) {
-    fprintf(stderr, "Memory allocation failed\n");
-    unzCloseCurrentFile(zfile);
-    unzClose(zfile);
-    return -1;
-  }
-
-  // Read the file
-  int bytes_read =
-      unzReadCurrentFile(zfile, buffer, file_info.uncompressed_size);
-  if (bytes_read != file_info.uncompressed_size) {
-    fprintf(stderr, "Error reading file from zip\n");
-    free(buffer);
-    unzCloseCurrentFile(zfile);
-    unzClose(zfile);
-    return -1;
-  }
-
-  // Null-terminate the buffer for string operations
-  buffer[file_info.uncompressed_size] = '\0';
-
-  // Cleanup
-  unzCloseCurrentFile(zfile);
-  unzClose(zfile);
-  *out = buffer;
-  return file_info.uncompressed_size;
-}
 
 cJSON *generate_change_request_epub(const char *file_path, const char *uuid) {
   FILE *f = fopen("/tmp/epub_meta.log", "a");
@@ -261,19 +151,13 @@ cJSON *generate_change_request_epub(const char *file_path, const char *uuid) {
   xmlChar *book_title =
       book_title_node ? xmlNodeGetContent(book_title_node) : NULL;
 
-  json =
-      generate_change_request(uuid, file_path, st.st_mtim.tv_sec, st.st_size,
-                              creator, publisher, book_title, thumbnail_path);
-  // Free book title if it was allocated
-  // if (book_title) xmlFree(book_title);
+  json = generate_change_request("application/epub+zip", uuid, file_path,
+                                 st.st_mtim.tv_sec, st.st_size, creator,
+                                 publisher, book_title, thumbnail_path);
 
-  // Cleanup function for the XML library
   xmlFreeDoc(metadata_doc);
   xmlFreeDoc(doc);
   xmlCleanupParser();
-
-  // Free remaining resources
-
   free(meta_inf);
   free(metadata);
   fclose(f);

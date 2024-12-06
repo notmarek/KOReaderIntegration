@@ -15,7 +15,7 @@
     "assoc": {
       "interface": "extractor",
       "handlerId": "com.notmarek.extractor",
-      "contentIds": ["GL:*.fb2"],
+      "contentIds": ["GL:*.fb2", "GL:*.fb2.zip", "GL:*.fbz"],
       "default": "true"
     }
   },
@@ -23,7 +23,7 @@
     "def": "mimetype",
     "assoc": {
       "mimetype": "MT:application/fictionbook2+zip",
-      "extensions": ["fb2"]
+      "extensions": ["fb2", "fb2.zip", "fbz"]
     }
   },
   {
