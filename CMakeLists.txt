@@ -120,6 +120,14 @@ target_link_libraries(koreader_helper PRIVATE
         lipc
     )
 
+# SH-IT launcher
+add_executable(shit_launcher src/launcher/main.c)
+target_include_directories(shit_launcher PRIVATE
+        openlipc/include)
+target_link_libraries(shit_launcher PRIVATE
+        lipc
+    )
+
 
 # Daemon Executable
 add_executable(jbutild)

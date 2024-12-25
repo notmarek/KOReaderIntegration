@@ -81,7 +81,7 @@ cJSON *generate_change_request_sh(const char *file_path, const char *uuid) {
   char* shit_app = read_file(file_path);
   parse_shit_app(shit_app, (char*)&name, (char*)&author, (char*)&icon);
 
-  json = generate_change_request("application/epub+zip", uuid, file_path,
+  json = generate_change_request("application/shit", uuid, file_path,
                                    st.st_mtim.tv_sec, st.st_size, author,
                                    "SHIT", name, icon);
   return json;
