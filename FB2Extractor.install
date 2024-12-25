@@ -5,7 +5,7 @@
     "assoc": {
       "handlerId": "com.notmarek.extractor",
       "props": {
-        "lib": "/mnt/us/EPUBIntegration/libepubExtractor.so",
+        "lib": "/mnt/us/KOI/libKOIExtractor.so",
         "entry": "load_extractors"
       }
     }

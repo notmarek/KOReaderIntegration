@@ -88,12 +88,14 @@ add_library(xml2 SHARED
     )
 target_include_directories(xml2 PRIVATE src/stubs/libxml2)
 # EPub Extractor Library
-add_library(epubExtractor SHARED
+add_library(KOIExtractor SHARED
         src/extractor/main.c
         src/extractor/simple_epub_extractor.c
+        src/extractor/simple_fb2_extractor.c
+        src/extractor/base64.c
         src/extractor/utils.c
     )
-target_include_directories(epubExtractor PRIVATE
+target_include_directories(KOIExtractor PRIVATE
         openlipc/include
         cJSON
         src/stubs/scanner
@@ -101,14 +103,14 @@ target_include_directories(epubExtractor PRIVATE
         zlib
         src/stubs/libxml2
     )
-target_link_libraries(epubExtractor PRIVATE
+target_link_libraries(KOIExtractor PRIVATE
         lipc
         scanner
         cjson
         miniunz
         xml2
     )
-add_dependencies(epubExtractor miniunz zlib xml2)
+add_dependencies(KOIExtractor miniunz zlib xml2)
 
 # Koreader helper
 add_executable(koreader_helper src/koreader/main.c)

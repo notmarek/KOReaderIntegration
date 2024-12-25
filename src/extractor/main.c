@@ -1,5 +1,6 @@
 #include "scanner.h"
 #include "simple_epub_extractor.h"
+#include "simple_sh_extractor.h"
 #include "simple_fb2_extractor.h"
 #include <cJSON.h>
 #include <regex.h>
@@ -219,13 +220,16 @@ cleanup:
 int extractor(const struct scanner_event *event) {
   FILE *log_file = NULL;
   char *app_path = NULL;
-
+  syslog(LOG_INFO, "glob: %s", event->glob);
   ExtractFile *extractor = NULL;
-  if (strcmp(event->glob, "GL:*.epub")) {
+  if (strcmp(event->glob, "*.epub") == 0) {
+
+      syslog(LOG_INFO, "indexinfg epub");
     extractor = generate_change_request_epub;
-  } else if (strcmp(event->glob, "GL:*.fb2") ||
-             strcmp(event->glob, "GL:*.fb2.zip") ||
-             strcmp(event->glob, "GL:*.fbz")) {
+  } else if (strcmp(event->glob, "*.fb2") == 0 ||
+             strcmp(event->glob, "*.fb2.zip") == 0 ||
+             strcmp(event->glob, "*.fbz") == 0 ) {
+    syslog(LOG_INFO, "indexinfg fb2");
     extractor = generate_change_request_fb2;
   }
 

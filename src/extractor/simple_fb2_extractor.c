@@ -5,32 +5,45 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/syslog.h>
+#include <syslog.h>
 
 cJSON *generate_change_request_fb2(const char *file_path, const char *uuid) {
+  syslog(LOG_INFO, "we are inside the fb2 indexer");
   bool unzip = is_zip_file(file_path);
   char *xml = "";
+  xmlDoc *metadata_doc = NULL;
   if (unzip) {
+    syslog(LOG_INFO, "unzipping");
     char filename[256];
     size_t filename_size = -1;
-    if (get_first_filename_in_zip(file_path, (char *)&filename,
-                                  filename_size) != 0) {
+    char *data = NULL;
+    read_first_file_from_zip(file_path, &data);
+    metadata_doc =
+        xmlParseDoc((const xmlChar *)force_replace_encoding_to_utf8(data));
+  } else {
+    FILE *file = fopen(file_path, "r");
+    if (file == NULL) {
       return NULL;
     }
-    read_file_from_zip(file_path, filename, &xml);
-  } else {
-    FILE *f = fopen(file_path, "r");
-    fseek(f, 0, SEEK_END);
-    long size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    char *buffer = malloc(size + 1);
-    fread(buffer, size, 1, f);
-    buffer[size] = '\0';
-    fclose(f);
-    xml = buffer;
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    rewind(file);
+    char *buffer = (char *)malloc(file_size + 1);
+    if (buffer == NULL) {
+      fclose(file);
+      return NULL;
+    }
+    size_t read_size = fread(buffer, 1, file_size, file);
+    buffer[read_size] = 0;
+    fclose(file);
+
+    metadata_doc =
+        xmlParseDoc((const xmlChar *)force_replace_encoding_to_utf8(buffer));
+    free(buffer);
   }
-  xmlDoc *metadata_doc = NULL;
-  metadata_doc = xmlParseDoc((const xmlChar *)xml);
   if (metadata_doc == NULL) {
+    syslog(LOG_ERR, "Fuck couldnt parse xml");
     return NULL;
   }
   xmlNode *root_element = xmlDocGetRootElement(metadata_doc);
@@ -58,6 +71,7 @@ cJSON *generate_change_request_fb2(const char *file_path, const char *uuid) {
 
   FILE *thumb = fopen((const char *)&thumbnail_path, "w");
   if (thumb == NULL) {
+    syslog(LOG_ERR, "Could not open thumbnail file\n");
     // do cleanup
   }
   char *cover_data = NULL;

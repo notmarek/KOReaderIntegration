@@ -1,9 +1,54 @@
 #include "utils.h"
+#include "minizip/unzip.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/syslog.h>
 #include <syslog.h>
+#include <regex.h>
+
+char* force_replace_encoding_to_utf8(const char* input) {
+    regex_t regex;
+    regmatch_t matches[1];
+    syslog(LOG_INFO, "Replacing encoding.");
+    // Compile the regex pattern
+    if (regcomp(&regex, "encoding=\"(.*?)\"", REG_EXTENDED) != 0) {
+        syslog(LOG_ERR, "Could not compile regex\n");
+        return NULL;
+    }
+
+    // Allocate memory for the output string (make it large enough)
+    char* output = malloc(strlen(input) + 1);
+    strcpy(output, input);
+
+    // Find and replace
+    char* pos = output;
+    while (regexec(&regex, pos, 1, matches, 0) == 0) {
+        // Calculate the match position
+        int match_start = matches[0].rm_so;
+        int match_end = matches[0].rm_eo;
+        // Create a new string with the replacement
+        char temp[strlen(output) + 1];
+        strncpy(temp, pos, match_start);
+        temp[match_start] = '\0';
+
+        strcat(temp, "encoding=\"UTF-8\"");
+        strcat(temp, pos + match_end);
+
+        // Copy back to output
+        strcpy(output, temp);
+        syslog(LOG_INFO, "Replaced encoding. %s", output    );
+        // Move position to continue searching
+        break;
+        //pos = output + match_start + strlen("encoding=\"utf8\"");
+    }
+
+    // Free the compiled regex
+    regfree(&regex);
+
+    return output;
+}
 
 xmlNode *find_element_by_prop(xmlNode *start_node, const char *name,
                               const char *prop_name, const char *prop_value) {
@@ -41,49 +86,70 @@ xmlNode *find_element_by_name(xmlNode *start_node, const char *name) {
   return NULL;
 }
 
-int get_first_filename_in_zip(const char *zipfile, char *filename,
-                              size_t filename_size) {
-  // Open the zip file
-  unzFile zfile = unzOpen64(zipfile);
-  if (zfile == NULL) {
-    syslog(LOG_ERR, "Error opening zip file %s\n", zipfile);
-    return -1;
-  }
+int read_first_file_from_zip(const char *zipfile, char** out) {
+    unzFile zfile = NULL;
+    char *buffer = NULL;
 
-  // Get global info about the zip file
-  unz_global_info64 global_info;
-  if (unzGetGlobalInfo64(zfile, &global_info) != UNZ_OK) {
-    syslog(LOG_ERR, "Error getting global info\n");
+    // Open the zip file
+    zfile = unzOpen(zipfile);
+    if (zfile == NULL) {
+      fprintf(stderr, "Could not open zip file %s\n", zipfile);
+      return -1;
+    }
+
+    // Locate the file in the zip archive
+    if (unzGoToFirstFile(zfile) != UNZ_OK) {
+      unzClose(zfile);
+      return -1;
+    }
+
+    // Get current file info
+    unz_file_info file_info;
+    char current_filename[256];
+    if (unzGetCurrentFileInfo(zfile, &file_info, current_filename,
+                              sizeof(current_filename), NULL, 0, NULL,
+                              0) != UNZ_OK) {
+      fprintf(stderr, "Could not get file info\n");
+      unzClose(zfile);
+      return -1;
+    }
+
+    // Open the current file
+    if (unzOpenCurrentFile(zfile) != UNZ_OK) {
+      fprintf(stderr, "Could not open file inside zip\n");
+      unzClose(zfile);
+      return -1;
+    }
+
+    // Buffer for reading
+    buffer = malloc(file_info.uncompressed_size + 1); // +1 for null-termination
+    if (buffer == NULL) {
+      fprintf(stderr, "Memory allocation failed\n");
+      unzCloseCurrentFile(zfile);
+      unzClose(zfile);
+      return -1;
+    }
+
+    // Read the file
+    int bytes_read =
+        unzReadCurrentFile(zfile, buffer, file_info.uncompressed_size);
+    if (bytes_read != file_info.uncompressed_size) {
+      fprintf(stderr, "Error reading file from zip\n");
+      free(buffer);
+      unzCloseCurrentFile(zfile);
+      unzClose(zfile);
+      return -1;
+    }
+
+    // Null-terminate the buffer for string operations
+    buffer[file_info.uncompressed_size] = '\0';
+
+    // Cleanup
+    unzCloseCurrentFile(zfile);
     unzClose(zfile);
-    return -1;
-  }
-
-  // If the zip file is empty
-  if (global_info.number_entry == 0) {
-    syslog(LOG_ERR, "No files in the zip archive\n");
-    unzClose(zfile);
-    return -1;
-  }
-
-  // Go to the first file in the archive
-  if (unzGoToFirstFile(zfile) != UNZ_OK) {
-    syslog(LOG_ERR, "Error going to first file\n");
-    unzClose(zfile);
-    return -1;
-  }
-
-  // Get info about current file
-  unz_file_info64 file_info;
-  if (unzGetCurrentFileInfo64(zfile, &file_info, filename, filename_size, NULL,
-                              0, NULL, 0) != UNZ_OK) {
-    syslog(LOG_ERR, "Error getting file info");
-    unzClose(zfile);
-    return -1;
-  }
-
-  unzClose(zfile);
-  return 0;
-}
+    *out = buffer;
+    return file_info.uncompressed_size;
+ }
 
 int read_file_from_zip(const char *zipfile, const char *filename, char **out) {
   unzFile zfile = NULL;

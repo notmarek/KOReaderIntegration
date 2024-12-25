@@ -1,15 +1,15 @@
 #!/bin/sh
-mkdir -p /mnt/us/EPUBIntegration
+mkdir -p /mnt/us/KOI
 
-echo "Moving binaries to /mnt/us/EPUBIntegration"
+echo "Moving binaries to /mnt/us/KOI"
 if [ -f /lib/ld-linux-armhf.so.3 ]; then
     echo "Detected firmware above 5.16.2.1.1, using hardfp binaries"
-    mv koreader_helper /mnt/us/EPUBIntegration
-    mv libepubExtractor.so /mnt/us/EPUBIntegration
+    mv koreader_helper /mnt/us/KOI
+    mv libKOIExtractor.so /mnt/us/KOI
 else
     echo "Detected firmware <= 5.16.2.1.1, using softfp binaries"
-    mv koreader_helper_softfp /mnt/us/EPUBIntegration/koreader_helper
-    mv libepubExtractor_softfp.so /mnt/us/EPUBIntegration/libepubExtractor.so
+    mv koreader_helper_softfp /mnt/us/KOI/koreader_helper
+    mv libKOIExtractor_softfp.so /mnt/us/KOI/libKOIExtractor.so
 fi
 
 echo "Moving koreader_helper.sh to /mnt/us/koreader"
