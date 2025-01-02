@@ -1,6 +1,5 @@
 #include "scanner.h"
 #include "simple_epub_extractor.h"
-#include "simple_sh_extractor.h"
 #include "simple_fb2_extractor.h"
 #include <cJSON.h>
 #include <regex.h>
