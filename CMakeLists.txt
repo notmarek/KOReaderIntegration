@@ -87,6 +87,7 @@ add_library(xml2 SHARED
         src/stubs/libxml2/libxml2.c
     )
 target_include_directories(xml2 PRIVATE src/stubs/libxml2)
+
 # EPub Extractor Library
 add_library(KOIExtractor SHARED
         src/extractor/main.c
@@ -120,38 +121,7 @@ target_link_libraries(koreader_helper PRIVATE
         lipc
     )
 
-# SH-IT launcher
-add_executable(shit_launcher src/launcher/main.c)
-target_include_directories(shit_launcher PRIVATE
-        openlipc/include)
-target_link_libraries(shit_launcher PRIVATE
-        lipc
-    )
-
-
-# Daemon Executable
-add_executable(jbutild)
-set_target_properties(jbutild PROPERTIES
-        C_VISIBILITY_PRESET hidden
-        COMPILE_WARNING_AS_ERROR ON
-    )
-target_include_directories(jbutild PRIVATE
-        openlipc/include
-        src/stubs/scanner
-        cJSON
-        ${sqlite3_SOURCE_DIR}
-    )
-target_link_libraries(jbutild PRIVATE
-        lipc
-        sqlite3
-        dl
-        cjson
-        scanner
-        pthread
-    )
-target_sources(jbutild PRIVATE
-        src/daemon/main.c
-    )
+# Test Extractor
 ADD_EXECUTABLE(testExtract src/extractor/simple_epub_extractor.c src/extractor/utils.c)
 target_include_directories(testExtract PRIVATE
         openlipc/include
