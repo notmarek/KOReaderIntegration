@@ -12,7 +12,7 @@
 #include <unistd.h>
 
 typedef cJSON *(ExtractFile)(const char *file_path, const char *uuid);
-void index_file(char *path, char *filename, ExtractFile *extractor) {
+void index_file(char *path, char *filename, ExtractFile *extractor, char* uuid_override) {
   char *full_path = NULL;
   char uuid[37] = {0};
   cJSON *json = NULL;
@@ -36,10 +36,14 @@ void index_file(char *path, char *filename, ExtractFile *extractor) {
   sprintf(full_path, "%s/%s", path, filename);
 
   // Generate UUID
-  scanner_gen_uuid((char *)&uuid, 37);
-  if (uuid[0] == 0) {
-    syslog(LOG_INFO, "Failed to generate UUID");
-    goto cleanup;
+  if (uuid_override) {
+    strncpy(uuid, uuid_override, 37);
+  } else {
+      scanner_gen_uuid((char *)&uuid, 37);
+      if (uuid[0] == 0) {
+          syslog(LOG_INFO, "Failed to generate UUID");
+          goto cleanup;
+      }
   }
   syslog(LOG_INFO, "Generated new UUID: %s", uuid);
 
@@ -219,40 +223,41 @@ cleanup:
 int extractor(const struct scanner_event *event) {
   FILE *log_file = NULL;
   char *app_path = NULL;
-  syslog(LOG_INFO, "glob: %s", event->glob);
   ExtractFile *extractor = NULL;
   if (strcmp(event->glob, "*.epub") == 0) {
 
-      syslog(LOG_INFO, "indexinfg epub");
+    syslog(LOG_INFO, "Indexing EPUB.");
     extractor = generate_change_request_epub;
   } else if (strcmp(event->glob, "*.fb2") == 0 ||
              strcmp(event->glob, "*.fb2.zip") == 0 ||
-             strcmp(event->glob, "*.fbz") == 0 ) {
-    syslog(LOG_INFO, "indexinfg fb2");
+             strcmp(event->glob, "*.fbz") == 0) {
+#ifdef FB2_SUPPORT
+    syslog(LOG_INFO, "Indexing FB2.");
     extractor = generate_change_request_fb2;
+#else
+    syslog(LOG_INFO, "FB2 support not enabled.");
+#endif
   }
 
   switch (event->event_type) {
   case SCANNER_ADD:
-    log_file = fopen("/tmp/epub_extractor.log", "a");
-    if (log_file) {
-      fprintf(log_file,
-              "SCANNER_ADD path: %s, filename: %s, uuid: %s, glob: %s\n",
-              event->path, event->filename, event->uuid, event->glob);
-      fflush(log_file);
-      fclose(log_file);
-    }
-    index_file(event->path, event->filename, extractor);
+    syslog(LOG_INFO, "SCANNER_ADD path: %s, filename: %s, uuid: %s, glob: %s\n",
+           event->path, event->filename, event->uuid, event->glob);
+    index_file(event->path, event->filename, extractor, NULL);
     break;
 
   case SCANNER_DELETE:
-    log_file = fopen("/tmp/epub_extractor.log", "a");
-    if (log_file) {
-      fprintf(log_file,
-              "SCANNER_DELETE path: %s, filename: %s, uuid: %s, glob: %s\n",
-              event->path, event->filename, event->uuid, event->glob);
-      fflush(log_file);
-      fclose(log_file);
+    syslog(LOG_INFO,
+           "SCANNER_DELETE path: %s, filename: %s, uuid: %s, glob: %s\n",
+           event->path, event->filename, event->uuid, event->glob);
+
+    // Create thumbnail path for deletion
+    char* thumb_path = malloc(40 + 37);
+    if (thumb_path) {
+        snprintf(thumb_path, 40 + 37,
+                 "/mnt/us/system/thumbnails/thumbnail_%s.jpg", event->uuid);
+        remove(thumb_path);
+        free(thumb_path);
     }
 
     // Create full path for deletion
@@ -268,24 +273,18 @@ int extractor(const struct scanner_event *event) {
     break;
 
   case SCANNER_UPDATE:
-    log_file = fopen("/tmp/epub_extractor.log", "a");
-    if (log_file) {
-      fprintf(log_file,
-              "SCANNER_UPDATE path: %s, filename: %s, uuid: %s, glob: %s\n",
-              event->path, event->filename, event->uuid, event->glob);
-      fflush(log_file);
-      fclose(log_file);
-    }
+    syslog(LOG_INFO,
+           "SCANNER_UPDATE path: %s, filename: %s, uuid: %s, glob: %s\n",
+           event->path, event->filename, event->uuid, event->glob);
+    index_file(event->path, event->filename, extractor, event->uuid);
     break;
 
   default:
-    log_file = fopen("/tmp/epub_extractor.log", "a");
-    index_file(event->path, event->filename, extractor);
-    if (log_file) {
-      fprintf(log_file, "Unknown event type: %d\n", event->event_type);
-      fflush(log_file);
-      fclose(log_file);
-    }
+    syslog(
+        LOG_WARNING,
+        "UNKNOWN EVENT TYPE: %d, path: %s, filename: %s, uuid: %s, glob: %s\n",
+        event->event_type, event->path, event->filename, event->uuid,
+        event->glob);
     return 0;
   }
   return 0;
