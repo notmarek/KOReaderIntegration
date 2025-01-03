@@ -1,4 +1,8 @@
 #!/bin/sh
+# Name: Uninstall Epub thing
+# Author: Marek
+# Icon:
+#
 echo "Removing binaries from /mnt/us/KOI"
 rm -rf /mnt/us/KOI
 echo "Removing koreader_helper.sh from /mnt/us/koreader"

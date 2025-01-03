@@ -14,13 +14,16 @@ mkdir -p /mnt/us/KOI
 
 echo "Moving binaries to /mnt/us/KOI"
 if [ -f /lib/ld-linux-armhf.so.3 ]; then
-    echo "Detected firmware above 5.16.2.1.1, using hardfp binaries"
+    echo "Detected firmware > 5.16.2.1.1, using hardfp binaries"
     mv koreader_helper /mnt/us/KOI
     mv libKOIExtractor.so /mnt/us/KOI
 else
-    echo "Detected firmware <= 5.16.2.1.1, using softfp binaries"
-    mv koreader_helper_softfp /mnt/us/KOI/koreader_helper
-    mv libKOIExtractor_softfp.so /mnt/us/KOI/libKOIExtractor.so
+    echo "Detected firmware <= 5.16.2.1.1"
+    echo "Not supported! (i don't feel like compiling it rn)"
+    sleep 5
+    exit 0
+   # mv koreader_helper_softfp /mnt/us/KOI/koreader_helper
+   # mv libKOIExtractor_softfp.so /mnt/us/KOI/libKOIExtractor.so
 fi
 
 echo "Moving koreader_helper.sh to /mnt/us/koreader"

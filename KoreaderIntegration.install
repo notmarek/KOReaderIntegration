@@ -14,16 +14,7 @@
         "framework": "",
         "lipcId": "com.github.koreader.helper",
         "default-chrome-style": "NH",
-        "command": "/mnt/us/EPUBIntegration/koreader_helper"
+        "command": "/mnt/us/KOI/koreader_helper"
       }
     }
-  },
-  {
-    "def": "association",
-    "assoc": {
-      "interface": "application",
-      "handlerId": "com.github.koreader.helper",
-      "contentIds": ["MT:application/epub+zip"],
-      "default": "true"
-    }
-  },
+  }
