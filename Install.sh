@@ -1,4 +1,15 @@
 #!/bin/sh
+# Name: Epub thing install
+# Author: Marek
+# Icon:
+
+if [ ! -d /mnt/us/documents/koi_installer ]; then
+    echo "koi_installer is not present in /mnt/us/documents, exiting ..."
+    sleep 3
+    exit 0
+fi
+
+cd /mnt/us/documents/koi_installer
 mkdir -p /mnt/us/KOI
 
 echo "Moving binaries to /mnt/us/KOI"
@@ -22,3 +33,4 @@ echo "Registering KOReader integration"
 /usr/bin/register KoreaderIntegration.install
 echo "Done! Triggering a full scan of the library"
 lipc-set-prop com.lab126.scanner doFullScan 1
+rm -rf /mnt/us/documents/koi_installer
