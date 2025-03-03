@@ -14,3 +14,5 @@ build.ninja
 testExtract
 koreader_helper
 dist
+target
+*.gz
